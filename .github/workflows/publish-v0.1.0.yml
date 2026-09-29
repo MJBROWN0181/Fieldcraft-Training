@@ -1,0 +1,19 @@
+name: Publish v0.1.0 release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    if: github.event.head_commit.message == 'Publish Fieldcraft Training v0.1.0'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create v0.1.0 --title "Fieldcraft Training v0.1.0" --notes-file RELEASE_NOTES.md --target "$GITHUB_SHA"
