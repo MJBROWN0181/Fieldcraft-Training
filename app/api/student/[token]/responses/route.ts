@@ -4,8 +4,8 @@ export const dynamic = "force-dynamic";
 export async function POST(request:Request,{params}:{params:Promise<{token:string}>}) {
   try { const {token}=await params; if (!/^[0-9a-f-]{36}$/i.test(token)) return NextResponse.json({error:"Invalid invitation"},{status:404});
     const row=await getWorkspace(); if (!row) return NextResponse.json({error:"Invitation unavailable"},{status:404});
-    const data=parseJson<{invites?:Array<{id:string}>;lessonAccess?:Array<{techId:string;lessonId:string;availableAt:string}>;lessons?:Array<{id:string;status:string;questions:string[]}>}>(row.data,{});
-    if (!(data.invites||[]).some(i=>i.id===token)) return NextResponse.json({error:"Invitation unavailable"},{status:404});
+    const data=parseJson<{invites?:Array<{id:string}>;removedTechIds?:string[];lessonAccess?:Array<{techId:string;lessonId:string;availableAt:string}>;lessons?:Array<{id:string;status:string;questions:string[]}>}>(row.data,{});
+    if (data.removedTechIds?.includes(token) || !(data.invites||[]).some(i=>i.id===token)) return NextResponse.json({error:"Company access unavailable"},{status:403});
     const profile=await database().prepare("SELECT invite_id FROM student_profiles WHERE invite_id=?").bind(token).first();
     if (!profile) return NextResponse.json({error:"Complete your profile first"},{status:403});
     const body=await request.json() as {lessonId?:string;answers?:string[]}; const assignment=(data.lessonAccess||[]).find(a=>a.techId===token&&a.lessonId===body.lessonId); const lesson=(data.lessons||[]).find(l=>l.id===body.lessonId);

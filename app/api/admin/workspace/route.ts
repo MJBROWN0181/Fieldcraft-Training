@@ -10,13 +10,15 @@ export async function GET() {
     const profiles = await database().prepare("SELECT profile FROM student_profiles").all<{profile:string}>();
     const progressRows = await database().prepare("SELECT invite_id,lesson_id,answers,updated_at FROM student_progress").all<{invite_id:string;lesson_id:string;answers:string;updated_at:string}>();
     const policyAcks = await database().prepare("SELECT invite_id,policy_id,acknowledged_at FROM policy_acknowledgments").all<{invite_id:string;policy_id:string;acknowledged_at:string}>();
-    const techs = parseJson<Array<{id:string}>>(row.techs, []);
+    const workspaceData = parseJson<{removedTechIds?:string[]}>(row.data, {});
+    const removed = new Set(workspaceData.removedTechIds || []);
+    const techs = parseJson<Array<{id:string}>>(row.techs, []).filter(t => !removed.has(t.id));
     const acceptedInviteIds:string[] = [];
     for (const item of profiles.results) {
       const profile = parseJson<{id:string} | null>(item.profile, null);
-      if (profile?.id) { acceptedInviteIds.push(profile.id); const index = techs.findIndex(t => t.id === profile.id); if (index >= 0) techs[index] = profile; else techs.push(profile); }
+      if (profile?.id && !removed.has(profile.id)) { acceptedInviteIds.push(profile.id); const index = techs.findIndex(t => t.id === profile.id); if (index >= 0) techs[index] = profile; else techs.push(profile); }
     }
-    return NextResponse.json({ data: parseJson(row.data, null), techs, acceptedInviteIds, policyAcknowledgments:policyAcks.results, progress: progressRows.results.map(p=>({techId:p.invite_id,lessonId:p.lesson_id,answers:parseJson(p.answers,[]),updatedAt:p.updated_at})), revision: row.revision, role }, { headers: { "Cache-Control": "no-store" } });
+    return NextResponse.json({ data: parseJson(row.data, null), techs, acceptedInviteIds, policyAcknowledgments:policyAcks.results, progress: progressRows.results.filter(p=>!removed.has(p.invite_id)).map(p=>({techId:p.invite_id,lessonId:p.lesson_id,answers:parseJson(p.answers,[]),updatedAt:p.updated_at})), revision: row.revision, role }, { headers: { "Cache-Control": "no-store" } });
   } catch { return NextResponse.json({ error: "Training records unavailable" }, { status: 503 }); }
 }
 export async function PUT(request: Request) {

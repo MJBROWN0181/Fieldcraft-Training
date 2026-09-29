@@ -9,8 +9,8 @@ export async function POST(request:Request,{params}:{params:Promise<{token:strin
     const profile=await database().prepare("SELECT invite_id FROM student_profiles WHERE invite_id=?").bind(token).first();
     const row=await getWorkspace();
     if (!profile||!row) return NextResponse.json({error:"Profile required"},{status:403});
-    const data=parseJson<{company?:string;invites?:Array<{id:string;company:string}>;policies?:Array<{id:string}>}>(row.data,{});
-    if (!data.invites?.some(i=>i.id===token)) return NextResponse.json({error:"Company access required"},{status:403});
+    const data=parseJson<{company?:string;invites?:Array<{id:string;company:string}>;removedTechIds?:string[];policies?:Array<{id:string}>}>(row.data,{});
+    if (data.removedTechIds?.includes(token) || !data.invites?.some(i=>i.id===token)) return NextResponse.json({error:"Company access required"},{status:403});
     const input=await request.json() as {policyId?:string};
     if (!data.policies?.some(p=>p.id===input.policyId)) return NextResponse.json({error:"Policy not found"},{status:404});
     const acknowledgedAt=new Date().toISOString();

@@ -1,6 +1,6 @@
 import { database, getWorkspace, parseJson } from "./server";
 
-type CompanyData = { company?: string; primaryTrade?: string; fieldQuestionsEnabled?: boolean; invites?: Array<{id:string; company:string; trade?:string}>; fixes?: Array<{id:string;trade:string;problem:string;method:string;contributor:string;blocked:boolean}> };
+type CompanyData = { company?: string; primaryTrade?: string; fieldQuestionsEnabled?: boolean; removedTechIds?: string[]; invites?: Array<{id:string; company:string; trade?:string}>; fixes?: Array<{id:string;trade:string;problem:string;method:string;contributor:string;blocked:boolean}> };
 export async function companyData() {
   const row = await getWorkspace();
   return row ? parseJson<CompanyData>(row.data, {}) : null;
@@ -8,7 +8,7 @@ export async function companyData() {
 export async function studentContext(token: string) {
   if (!/^[0-9a-f-]{36}$/i.test(token)) return null;
   const data = await companyData();
-  const invite = data?.invites?.find(i => i.id === token);
+  const invite = data?.removedTechIds?.includes(token) ? null : data?.invites?.find(i => i.id === token);
   if (!invite) return null;
   const row = await database().prepare("SELECT profile FROM student_profiles WHERE invite_id=?").bind(token).first<{profile:string}>();
   if (!row) return null;

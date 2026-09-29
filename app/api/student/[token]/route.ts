@@ -6,12 +6,13 @@ type Profile = {id:string;name:string;phone:string;email:string;company:string;t
 async function lookup(token:string) {
   if (!/^[0-9a-f-]{36}$/i.test(token)) return null;
   const row = await getWorkspace(); if (!row) return null;
-  const data = parseJson<{company?:string;invites?:Invite[];lessons?:Array<Record<string,unknown>>;policies?:Array<{id:string;title:string;body:string;attachments?:Array<{id:string;name:string;mime:string;data:string}>}>;lessonAccess?:Array<{techId:string;lessonId:string;availableAt:string}>;fieldQuestionsEnabled?:boolean;completions?:Array<{techId:string;courseName:string;companyName:string;completedDate:string;signedDate:string}>}>(row.data,{});
+  const data = parseJson<{company?:string;invites?:Invite[];removedTechIds?:string[];lessons?:Array<Record<string,unknown>>;policies?:Array<{id:string;title:string;body:string;attachments?:Array<{id:string;name:string;mime:string;data:string}>}>;lessonAccess?:Array<{techId:string;lessonId:string;availableAt:string}>;fieldQuestionsEnabled?:boolean;completions?:Array<{techId:string;courseName:string;companyName:string;completedDate:string;signedDate:string}>}>(row.data,{});
+  if (data.removedTechIds?.includes(token)) return { removed:true as const };
   const invite = (data.invites || []).find(i => i.id === token);
-  return invite ? {data,invite} : null;
+  return invite ? {data,invite,removed:false as const} : null;
 }
 export async function GET(_request:Request,{params}:{params:Promise<{token:string}>}) {
-  try { const {token}=await params; const found=await lookup(token); if (!found) return NextResponse.json({error:"Invitation not found"},{status:404});
+  try { const {token}=await params; const found=await lookup(token); if (found?.removed) return NextResponse.json({error:"Company access ended. Your profile and training history remain saved."},{status:403}); if (!found) return NextResponse.json({error:"Invitation not found"},{status:404});
     const saved = await database().prepare("SELECT profile FROM student_profiles WHERE invite_id=?").bind(token).first<{profile:string}>();
     const profile = saved ? parseJson<Profile|null>(saved.profile,null) : null;
     if (!profile && (!found.invite.expiresAt || new Date(found.invite.expiresAt).getTime() <= Date.now())) return NextResponse.json({error:"This invitation expired. Ask your supervisor to resend it."},{status:410});
@@ -27,7 +28,7 @@ export async function GET(_request:Request,{params}:{params:Promise<{token:strin
   } catch { return NextResponse.json({error:"Training records unavailable"},{status:503}); }
 }
 export async function PUT(request:Request,{params}:{params:Promise<{token:string}>}) {
-  try { const {token}=await params; const found=await lookup(token); if (!found) return NextResponse.json({error:"Invitation not found"},{status:404});
+  try { const {token}=await params; const found=await lookup(token); if (found?.removed) return NextResponse.json({error:"Company access ended. Your profile and training history remain saved."},{status:403}); if (!found) return NextResponse.json({error:"Invitation not found"},{status:404});
     const existing = await database().prepare("SELECT invite_id FROM student_profiles WHERE invite_id=?").bind(token).first();
     if (!existing && (!found.invite.expiresAt || new Date(found.invite.expiresAt).getTime() <= Date.now())) return NextResponse.json({error:"This invitation expired. Ask your supervisor to resend it."},{status:410});
     const input=await request.json() as Partial<Profile>; const name=String(input.name||"").trim(),email=String(input.email||"").trim(),phone=String(input.phone||"").trim();
